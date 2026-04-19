@@ -8,33 +8,20 @@ from datetime import datetime
 import math
 import random
 
-# ──────────────────────────────────────────────────────────────────────────────
-# PHYSICS CONSTANTS
-# ──────────────────────────────────────────────────────────────────────────────
+SOLAR_CONSTANT   = 1361.0
+UV_FRACTION      = 0.07
+OZONE_THICKNESS  = 0.30
+ATMOS_EXTINCTION = 0.12
 
-SOLAR_CONSTANT   = 1361.0   # W/m²  — Top-of-atmosphere solar irradiance
-UV_FRACTION      = 0.07     # Fraction of solar spectrum in UV band (~7%)
-OZONE_THICKNESS  = 0.30     # Normalised ozone column (300 DU → 0.30)
-ATMOS_EXTINCTION = 0.12     # Rayleigh scattering + aerosol extinction
-
-# Calibration: clear-sky, solar noon, tropical latitude → UVI ≈ 11
-# I_noon = 1361 × 0.07 × exp(−0.42) ≈ 62.6 W/m²  → scale = 62.6/11 ≈ 5.69
-UVI_SCALE_FACTOR = 5.69     # W/m² per UVI unit
-
-
-# ──────────────────────────────────────────────────────────────────────────────
-# PHYSICS ENGINE
-# ──────────────────────────────────────────────────────────────────────────────
+UVI_SCALE_FACTOR = 5.69
 
 def solar_zenith_angle(hour: float, latitude_deg: float = 3.1,
                         day_of_year: int = None) -> float:
     if day_of_year is None:
         day_of_year = datetime.now().timetuple().tm_yday
 
-    # Solar declination δ (Cooper equation)
     delta = 23.45 * math.sin(math.radians((360 / 365) * (day_of_year - 81)))
 
-    # Hour angle H: 0° at solar noon, ±15° per hour
     H = (hour - 12.0) * 15.0
 
     phi_r   = math.radians(latitude_deg)
@@ -90,12 +77,7 @@ def simulate_daily_uvi(latitude_deg: float = 3.1,
     return hours, np.array(uvi)
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# UV CATEGORY HELPERS
-# ──────────────────────────────────────────────────────────────────────────────
-
 def uvi_category(uvi: float):
-    """Return (label, hex_color, level_int 0–4) for a UV Index value."""
     if uvi < 2:
         return "Low",       "#4CAF50", 0
     elif uvi < 5:
@@ -132,10 +114,6 @@ PROTECTION_TIPS = {
 }
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# DASHBOARD APPLICATION
-# ──────────────────────────────────────────────────────────────────────────────
-
 class UVDashboard:
     BG_DARK  = "#0D1B2A"
     BG_CARD  = "#162840"
@@ -151,11 +129,11 @@ class UVDashboard:
         self.root.geometry("1280x820")
         self.root.resizable(True, True)
 
-        # ── Simulation parameters ──────────────────────────────────────────
+        # Simulation parameters
         self.location     = "Malaysia"
-        self.latitude     = 6.12       # degrees N
-        self.cloud_factor = 0.82       # partly cloudy typical for region
-        self.skin_type    = 3          # Fitzpatrick type III (default)
+        self.latitude     = 6.12
+        self.cloud_factor = 0.82
+        self.skin_type    = 3
 
         self.hours, self.uvi_data = simulate_daily_uvi(
             self.latitude, self.cloud_factor)
@@ -168,8 +146,7 @@ class UVDashboard:
         self._build_ui()
         self._schedule_refresh()
 
-    # ── LAYOUT ────────────────────────────────────────────────────────────────
-
+    # LAYOUT
     def _build_ui(self):
         self._build_header()
         self._build_body()
@@ -180,14 +157,14 @@ class UVDashboard:
         hdr.pack(fill="x", side="top")
         hdr.pack_propagate(False)
 
-        tk.Label(hdr, text="☀  UV EXPOSURE MONITORING",
+        tk.Label(hdr, text="UV EXPOSURE MONITORING",
                  font=("Courier New", 18, "bold"),
                  fg=self.ACCENT, bg="#091520").pack(side="left", padx=24, pady=14)
 
         right = tk.Frame(hdr, bg="#091520")
         right.pack(side="right", padx=24)
 
-        tk.Label(right, text=f"📍 {self.location}",
+        tk.Label(right, text=f" {self.location}",
                  font=("Courier New", 11),
                  fg=self.TEXT_SUB, bg="#091520").pack(anchor="e")
 
@@ -218,8 +195,7 @@ class UVDashboard:
         inner.pack(fill="both", expand=True, padx=2, pady=(2, 2))
         return inner
 
-    # ── COL 1: GAUGE ──────────────────────────────────────────────────────────
-
+    # Current UV Index_Layout
     def _build_uv_gauge(self, parent):
         card = self._card(parent, 0, "Current UV Index")
 
@@ -237,7 +213,6 @@ class UVDashboard:
             ax.add_patch(mpatches.Wedge(
                 (0.5, 0.15), 0.40, a2, a1, width=0.12,
                 color=color, transform=ax.transAxes, zorder=2))
-
         # Needle
         angle_rad = math.radians(
             180 - (min(self.current_uvi, uvi_max) / uvi_max) * 180)
@@ -285,15 +260,13 @@ class UVDashboard:
             .pack(fill="both", expand=True, padx=4, pady=4)
         plt.close(fig)
 
-    # ── COL 2: FORECAST ───────────────────────────────────────────────────────
-
+    #Forecast Whole Day UV Index
     def _build_forecast(self, parent):
         card = self._card(parent, 1, "UV Index Forecast — Today")
 
         fig, ax = plt.subplots(figsize=(4.6, 3.4), facecolor=self.BG_CARD)
         ax.set_facecolor("#0E1F30")
 
-        # Colour-coded line segments
         pts  = np.array([self.hours, self.uvi_data]).T.reshape(-1, 1, 2)
         segs = np.concatenate([pts[:-1], pts[1:]], axis=1)
         seg_colors = [uvi_category((u1 + u2) / 2)[1]
@@ -302,7 +275,6 @@ class UVDashboard:
                                          linewidths=2.5, zorder=4))
         ax.fill_between(self.hours, self.uvi_data, alpha=0.15, color=self.ACCENT)
 
-        # Risk band backgrounds
         for lo, hi, c, lbl in [(0, 2, "#4CAF50", "Low"),
                                 (2, 5, "#FFC107", "Moderate"),
                                 (5, 7, "#FF7043", "High"),
@@ -312,7 +284,6 @@ class UVDashboard:
             ax.text(23.5, (lo + hi) / 2, lbl, va='center',
                     fontsize=6.5, color=c, ha='right', alpha=0.75)
 
-        # Current time
         ax.axvline(self.current_hour, color=self.ACCENT,
                    lw=1.5, ls='--', alpha=0.8, zorder=5)
         ax.scatter([self.current_hour], [self.current_uvi],
@@ -321,7 +292,6 @@ class UVDashboard:
                 f"Now\n{self.current_uvi:.1f}",
                 fontsize=9, color=self.ACCENT, va='bottom')
 
-        # Peak UVI
         pk = int(np.argmax(self.uvi_data))
         ax.scatter([self.hours[pk]], [self.uvi_data[pk]],
                    color="#FF7043", s=70, marker='*', zorder=7)
@@ -355,20 +325,19 @@ class UVDashboard:
             .pack(fill="both", expand=True, padx=4, pady=4)
         plt.close(fig)
 
-    # ── COL 3: PROTECTION ─────────────────────────────────────────────────────
-
+    #Protection
     def _build_protection(self, parent):
         card = self._card(parent, 2, "Protection Tips")
         cat, col, level = uvi_category(self.current_uvi)
         tips = PROTECTION_TIPS.get(level, PROTECTION_TIPS[0])
 
-        # ── Risk banner (top) ──
+        # Risk banner (top)
         tk.Label(card, text=f"⚠  {cat.upper()} RISK",
                  font=("Courier New", 13, "bold"),
                  fg=col, bg=self.BG_CARD).pack(pady=(12, 4))
         tk.Frame(card, bg=col, height=2).pack(fill="x", padx=16, pady=(0, 10))
 
-        # ── Tips (middle, push upward) ──
+        # Tips
         for icon, tip in tips:
             row = tk.Frame(card, bg=self.BG_CARD)
             row.pack(fill="x", padx=14, pady=5)
@@ -378,7 +347,7 @@ class UVDashboard:
                      fg=self.TEXT_MAIN, bg=self.BG_CARD,
                      wraplength=170, justify="left").pack(side="left", padx=8)
 
-        # ── Safe exposure (bottom) ──
+        # Safe exposure
         safe_min = safe_exposure_minutes(self.current_uvi, self.skin_type)
         if safe_min != float('inf'):
             safe_str = f"Max safe exposure: ~{int(safe_min)} min"
@@ -395,12 +364,10 @@ class UVDashboard:
                  font=("Courier New", 9),
                  fg=self.TEXT_SUB, bg=self.BG_CARD).pack(pady=(0, 8))
 
-    # ── COL 4: OUTDOOR TIME ───────────────────────────────────────────────────
-
+    #Suggestion Outdoor Time
     def _build_outdoor_time(self, parent):
         card = self._card(parent, 3, "Best Outdoor Time")
 
-        # Compute safe windows: UVI < 5 during daylight
         safe_windows = []
         in_win, w_start = False, None
         for h, u in zip(self.hours, self.uvi_data):
@@ -413,14 +380,13 @@ class UVDashboard:
         if in_win:
             safe_windows.append((w_start, 20.0))
 
-        # Compute danger window: UVI ≥ 8
         danger = [(h, u) for h, u in zip(self.hours, self.uvi_data)
                   if u >= 8 and 5 <= h <= 20]
 
         def fmt(h):
             return f"{int(h):02d}:{int((h % 1) * 60):02d}"
 
-        # ── Safe Windows (top section) ──
+        # Safe Windows
         tk.Label(card, text="🟢  Safe Windows  (UVI < 5)",
                  font=("Courier New", 11, "bold"),
                  fg="#4CAF50", bg=self.BG_CARD).pack(pady=(18, 6))
@@ -437,7 +403,7 @@ class UVDashboard:
 
         tk.Frame(card, bg=self.BORDER, height=1).pack(fill="x", padx=12, pady=14)
 
-        # ── Danger Window (bottom section) ──
+        #Danger Window
         tk.Label(card, text="🔴  Danger Window  (UVI ≥ 8)",
                  font=("Courier New", 11, "bold"),
                  fg="#E53935", bg=self.BG_CARD).pack(pady=(0, 6))
@@ -452,8 +418,7 @@ class UVDashboard:
                      font=("Courier New", 12), fg="#4CAF50",
                      bg=self.BG_CARD).pack(pady=4)
 
-    # ── ALERT BAR ─────────────────────────────────────────────────────────────
-
+    #Alter Bar
     def _build_alert_bar(self):
         cat, col, level = uvi_category(self.current_uvi)
         safe_min = safe_exposure_minutes(self.current_uvi, self.skin_type)
@@ -480,7 +445,7 @@ class UVDashboard:
         tk.Label(bar, text=msg, font=("Courier New", 12, "bold"),
                  fg=fg, bg=bg).pack(expand=True)
 
-    # ── REFRESH ───────────────────────────────────────────────────────────────
+    #Refresh
 
     def _update_date(self):
         self.lbl_date.config(
@@ -489,11 +454,6 @@ class UVDashboard:
     def _schedule_refresh(self):
         self._update_date()
         self.root.after(30_000, self._schedule_refresh)
-
-
-# ──────────────────────────────────────────────────────────────────────────────
-# PHYSICS SUMMARY (printed to terminal on launch)
-# ──────────────────────────────────────────────────────────────────────────────
 
 def print_physics_summary(latitude: float = 6.12, cloud_factor: float = 0.82):
     print("=" * 64)
@@ -535,11 +495,6 @@ def print_physics_summary(latitude: float = 6.12, cloud_factor: float = 0.82):
     print(f"  UV Index (sim.)    : {uvi_v:.2f}  [{cat}]")
     print(f"  Safe exposure      : {safe_s}  (skin type Ⅲ)")
     print("=" * 64)
-
-
-# ──────────────────────────────────────────────────────────────────────────────
-# ENTRY POINT
-# ──────────────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     print_physics_summary()
